@@ -1,0 +1,57 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="theme-color" content="#16996b">
+<title>Nirakar Attendance – Login</title>
+<link rel="icon" href="logo.png">
+<link rel="stylesheet" href="style.css">
+</head>
+<body class="login-page">
+<div class="card login-card">
+  <img class="logo" src="logo.png" alt="Nirakar Safai Seva Pvt. Ltd. logo">
+  <h1>NIRAKAR ATTENDANCE</h1>
+  <div class="seg">
+    <button type="button" id="tabEmp" class="active">Employee</button>
+    <button type="button" id="tabAdmin">Admin</button>
+  </div>
+  <form id="form" autocomplete="on">
+    <label for="phone">Mobile number</label>
+    <input id="phone" type="tel" inputmode="numeric" autocomplete="username" placeholder="98XXXXXXXX" required>
+    <label for="pw">Password</label>
+    <input id="pw" type="password" autocomplete="current-password" required>
+    <div id="msg" class="msg err hidden"></div>
+    <button class="btn" style="width:100%;margin-top:1rem" id="go">Login as Employee</button>
+  </form>
+</div>
+<script src="common.js"></script>
+<script>
+let role = 'employee';
+// already logged in? go straight in
+if (getToken('admin')) location.replace('/admin.html');
+else if (getToken('employee')) location.replace('/employee.html');
+
+function pick(r) {
+  role = r;
+  $('#tabEmp').classList.toggle('active', r === 'employee');
+  $('#tabAdmin').classList.toggle('active', r === 'admin');
+  $('#go').textContent = r === 'admin' ? 'Login as Admin' : 'Login as Employee';
+  $('#msg').classList.add('hidden');
+}
+$('#tabEmp').onclick = () => pick('employee');
+$('#tabAdmin').onclick = () => pick('admin');
+$('#form').onsubmit = async e => {
+  e.preventDefault();
+  const btn = $('#go'); btn.disabled = true;
+  try {
+    const d = await api(null, `/api/${role}/login`, { method: 'POST', body: { phone: $('#phone').value, password: $('#pw').value } });
+    setToken(role, d.token);
+    location.href = role === 'admin' ? '/admin.html' : '/employee.html';
+  } catch (err) {
+    $('#msg').textContent = err.message; $('#msg').classList.remove('hidden');
+  } finally { btn.disabled = false; }
+};
+</script>
+</body>
+</html>
