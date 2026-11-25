@@ -1,0 +1,91 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="theme-color" content="#16996b">
+<title>Nirakar Attendance – Employee</title>
+<link rel="icon" href="logo.png">
+<link rel="stylesheet" href="style.css">
+</head>
+<body>
+<div class="topbar">
+  <img src="logo.png" alt="logo">
+  <div class="title">Nirakar Attendance<small id="who"></small></div>
+  <button class="btn small" onclick="logout('employee')">Logout</button>
+</div>
+<div class="container">
+  <div class="card">
+    <div class="clock" id="clock">--:--:--</div>
+    <div class="clock-date" id="cdate"></div>
+    <div id="todayInfo" style="text-align:center"></div>
+    <div class="big-actions">
+      <button class="btn" id="btnIn">Check In</button>
+      <button class="btn brown" id="btnOut">Check Out</button>
+    </div>
+    <div id="msg" class="msg hidden"></div>
+  </div>
+
+  <div class="card">
+    <div class="row" style="align-items:end">
+      <div><h3 style="margin:0">My Attendance History</h3></div>
+      <div><label for="month">Month</label><input type="month" id="month"></div>
+    </div>
+    <div class="stats" style="margin:1rem 0">
+      <div class="stat"><b id="sDays">0</b><span>Days attended</span></div>
+      <div class="stat"><b id="sHours">0</b><span>Total hours</span></div>
+    </div>
+    <div class="table-wrap"><table>
+      <thead><tr><th>Date</th><th>Check-in</th><th>Check-out</th><th>Hours</th><th>Status</th><th>Photos</th></tr></thead>
+      <tbody id="hist"></tbody>
+    </table></div>
+  </div>
+</div>
+<script src="common.js"></script>
+<script>
+if (!getToken('employee')) location.replace('/');
+const R = 'employee';
+function say(t, ok) { const m = $('#msg'); m.textContent = t; m.className = 'msg ' + (ok ? 'ok' : 'err'); }
+
+function tick() {
+  const d = new Date();
+  $('#clock').textContent = d.toLocaleTimeString('en-US', { timeZone: TZ });
+  $('#cdate').textContent = d.toLocaleDateString('en-GB', { timeZone: TZ, weekday: 'long', day: '2-digit', month: 'long', year: 'numeric' });
+}
+setInterval(tick, 1000); tick();
+
+async function loadToday() {
+  const { record } = await api(R, '/api/me/today');
+  $('#btnIn').disabled = !!record;
+  $('#btnOut').disabled = !record || !!record.check_out_time;
+  $('#todayInfo').innerHTML = !record ? 'You have not checked in today.' :
+    `Checked in at <b>${fmtTime(record.check_in_time)}</b>` + (record.check_out_time ? ` · Checked out at <b>${fmtTime(record.check_out_time)}</b> · ${record.hours} hrs` : '');
+}
+async function loadHistory() {
+  const d = await api(R, '/api/me/history?month=' + $('#month').value);
+  $('#sDays').textContent = d.records.length;
+  $('#sHours').textContent = d.totalHours;
+  $('#hist').innerHTML = d.records.map(r => `<tr><td>${fmtDate(r.date)}</td><td>${fmtTime(r.check_in_time)}</td><td>${fmtTime(r.check_out_time)}</td><td>${r.hours ?? '—'}</td><td>${badge(r.status)}</td><td>${photoTag(r.check_in_photo)} ${photoTag(r.check_out_photo)}</td></tr>`).join('') || '<tr><td colspan="6" style="text-align:center;color:#888">No records for this month</td></tr>';
+  hydratePhotos(R, $('#hist'));
+}
+async function act(kind) {
+  const photo = await capturePhoto(kind === 'checkin' ? 'Photo for Check-in' : 'Photo for Check-out');
+  if (!photo) return say('A photo is required — nothing was recorded.', false);
+  try {
+    await api(R, '/api/me/' + kind, { method: 'POST', body: { photo } });
+    say(kind === 'checkin' ? 'Checked in successfully ✔' : 'Checked out successfully ✔', true);
+  } catch (e) { say(e.message, false); }
+  await loadToday(); await loadHistory();
+}
+$('#btnIn').onclick = () => act('checkin');
+$('#btnOut').onclick = () => act('checkout');
+$('#month').value = monthNow();
+$('#month').onchange = loadHistory;
+(async () => {
+  const me = await api(R, '/api/me');
+  $('#who').textContent = `${me.name} · ${me.designation}`;
+  await loadToday(); await loadHistory();
+})().catch(e => say(e.message, false));
+</script>
+</body>
+</html>
